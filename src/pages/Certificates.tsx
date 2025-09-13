@@ -74,7 +74,7 @@ export const Certificates: React.FC = () => {
 
     try {
       const fileExt = selectedFile.name.split('.').pop();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      const fileName = `${Date.now()}_${user.id.slice(0, 8)}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('certificates')
@@ -162,21 +162,6 @@ export const Certificates: React.FC = () => {
   const downloadFile = async (filePath: string, title: string) => {
     setProcessingFile(filePath);
     try {
-      // First check if file exists
-      const { data: fileData, error: listError } = await supabase.storage
-        .from('certificates')
-        .list(filePath.split('/')[0]);
-
-      if (listError) {
-        console.error('Error checking file:', listError);
-        toast({
-          title: "Error",
-          description: "Certificate file not found",
-          variant: "destructive",
-        });
-        return;
-      }
-
       const { data, error } = await supabase.storage
         .from('certificates')
         .download(filePath);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { Calendar, Trophy, Target, TrendingUp, Plus, CheckCircle, Clock, X } from 'lucide-react';
+import { Calendar, Trophy, Target, TrendingUp, Plus, CheckCircle, Clock, X, MessageCircle, Code } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -19,14 +19,14 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Navbar } from '@/components/Navbar';
+import { Chatbot } from '@/components/Chatbot';
 
 interface UserProfile {
   id: string;
   full_name: string;
-  leetcode_points: number;
   streak_count: number;
   college_name: string;
-  leetcode_username: string;
+  leetcode_username?: string;
 }
 
 interface UserStats {
@@ -35,6 +35,25 @@ interface UserStats {
   rank: number;
   tasksCompleted: number;
   totalTasks: number;
+  leetcodeSolved?: number;
+}
+
+interface LeetCodeApiResponse {
+  status: string;
+  message: string;
+  totalSolved: number;
+  totalQuestions: number;
+  easySolved: number;
+  totalEasy: number;
+  mediumSolved: number;
+  totalMedium: number;
+  hardSolved: number;
+  totalHard: number;
+  acceptanceRate: number;
+  ranking: number;
+  contributionPoints: number;
+  reputation: number;
+  submissionCalendar: Record<string, number>;
 }
 
 interface Task {
@@ -56,7 +75,6 @@ interface LeaderboardEntry {
   rank: number;
   name: string;
   points: number;
-  leetcode_problems: number;
   college_name: string;
 }
 
@@ -90,6 +108,10 @@ export const Dashboard: React.FC = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(false);
   const [statsLoading, setStatsLoading] = useState(false);
+  
+  // Chatbot state
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
+  const [isChatbotMinimized, setIsChatbotMinimized] = useState(false);
   
   // Add Task Dialog state
   const [isAddTaskDialogOpen, setIsAddTaskDialogOpen] = useState(false);
@@ -157,16 +179,6 @@ export const Dashboard: React.FC = () => {
     setStatsLoading(true);
 
     try {
-      // Calculate rank based on leetcode_points
-      const { data: rankData, error: rankError } = await supabase
-        .from('profiles')
-        .select('id')
-        .gt('leetcode_points', userProfile.leetcode_points || 0);
-
-      if (rankError) throw rankError;
-
-      const rank = (rankData?.length || 0) + 1;
-
       // Get today's tasks statistics
       const today = new Date().toISOString().split('T')[0];
       const { data: tasksData, error: tasksError } = await supabase
@@ -180,15 +192,33 @@ export const Dashboard: React.FC = () => {
       const totalTasks = tasksData?.length || 0;
       const completedTasks = tasksData?.filter(task => task.completed).length || 0;
 
+      // Get LeetCode stats if user has connected their account
+      let leetcodeSolved = 0;
+      
+      if (userProfile?.leetcode_username) {
+        try {
+          const response = await fetch(`https://leetcode-stats-api.herokuapp.com/${userProfile.leetcode_username}`);
+          if (response.ok) {
+            const leetcodeStats = await response.json();
+            // Only use totalSolved from the API response
+            leetcodeSolved = leetcodeStats.totalSolved || 0;
+          }
+        } catch (error) {
+          console.error('Error fetching LeetCode stats:', error);
+        }
+      }
+
       const stats: UserStats = {
-        totalPoints: userProfile.leetcode_points || 0,
-        streak: userProfile.streak_count || 0,
-        rank: rank,
+        totalPoints: userProfile.streak_count * 10, // Simple calculation
+        streak: userProfile.streak_count,
+        rank: 1, // This could be calculated based on points
         tasksCompleted: completedTasks,
         totalTasks: totalTasks,
+        leetcodeSolved: leetcodeSolved
       };
 
       setUserStats(stats);
+
     } catch (error) {
       console.error('Error fetching user stats:', error);
     } finally {
@@ -202,13 +232,9 @@ export const Dashboard: React.FC = () => {
       .select(`
         id,
         full_name,
-        leetcode_points,
         college_name,
-        leetcode_stats (
-          total_solved
-        )
+        streak_count
       `)
-      .order('leetcode_points', { ascending: false })
       .limit(5);
 
     if (error) {
@@ -217,9 +243,8 @@ export const Dashboard: React.FC = () => {
       const leaderboardData: LeaderboardEntry[] = data?.map((profile, index) => ({
         rank: index + 1,
         name: profile.full_name || 'Anonymous',
-        points: profile.leetcode_points || 0,
-        leetcode_problems: profile.leetcode_stats?.[0]?.total_solved || 0,
-        college_name: profile.college_name || ''
+        college_name: profile.college_name || '',
+        points: (profile.streak_count || 0) * 10
       })) || [];
       setLeaderboard(leaderboardData);
     }
@@ -250,7 +275,7 @@ export const Dashboard: React.FC = () => {
     
     const { data, error } = await supabase
       .from('events')
-      .select('id, title, start_date, location, event_type')
+      .select('id, title, start_date, location, event_type, creator_id')
       .gte('start_date', today)
       .eq('is_active', true)
       .order('start_date')
@@ -402,7 +427,7 @@ export const Dashboard: React.FC = () => {
     const today = new Date();
     const { data, error } = await supabase
       .from('events')
-      .select('*')
+      .select('id, title, start_date, location, event_type, creator_id, description, end_date, registration_required, max_participants')
       .gte('start_date', today.toISOString())
       .eq('is_active', true)
       .order('start_date', { ascending: true })
@@ -488,15 +513,15 @@ export const Dashboard: React.FC = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Leaderboard Rank</p>
+                  <p className="text-sm font-medium text-muted-foreground">LeetCode Solved</p>
                   {statsLoading ? (
                     <div className="h-8 w-12 bg-muted animate-pulse rounded"></div>
                   ) : (
-                    <p className="text-2xl font-bold text-warning">#{userStats?.rank || '-'}</p>
+                    <p className="text-2xl font-bold text-success">{userStats?.leetcodeSolved || 0}</p>
                   )}
                 </div>
-                <div className="h-12 w-12 bg-warning/10 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="h-6 w-6 text-warning" />
+                <div className="h-12 w-12 bg-success/10 rounded-lg flex items-center justify-center">
+                  <Code className="h-6 w-6 text-success" />
                 </div>
               </div>
             </CardContent>
@@ -513,8 +538,8 @@ export const Dashboard: React.FC = () => {
                     <p className="text-2xl font-bold">{userStats?.tasksCompleted || 0}/{userStats?.totalTasks || 0}</p>
                   )}
                 </div>
-                <div className="h-12 w-12 bg-success/10 rounded-lg flex items-center justify-center">
-                  <CheckCircle className="h-6 w-6 text-success" />
+                <div className="h-12 w-12 bg-blue-500/10 rounded-lg flex items-center justify-center">
+                  <CheckCircle className="h-6 w-6 text-blue-500" />
                 </div>
               </div>
               {!statsLoading && userStats && (
@@ -739,6 +764,28 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Floating Chatbot Toggle Button
+      {!isChatbotOpen && (
+        <Button
+          className="fixed bottom-4 right-4 w-14 h-14 rounded-full shadow-lg z-40"
+          onClick={() => setIsChatbotOpen(true)}
+        >
+          <MessageCircle className="w-6 h-6" />
+        </Button>
+      )}
+
+      {/* Chatbot Component */}
+      {/* {isChatbotOpen && (
+        <Chatbot
+          isMinimized={isChatbotMinimized}
+          onToggleMinimize={() => setIsChatbotMinimized(!isChatbotMinimized)}
+          onClose={() => {
+            setIsChatbotOpen(false);
+            setIsChatbotMinimized(false);
+          }}
+        />
+      )} */}
 
       {/* Add Task Dialog */}
       <Dialog open={isAddTaskDialogOpen} onOpenChange={setIsAddTaskDialogOpen}>

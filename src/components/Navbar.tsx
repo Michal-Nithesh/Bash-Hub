@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { GraduationCap, User, LogOut } from 'lucide-react';
+import { GraduationCap, User, LogOut, Bot, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
@@ -31,6 +31,18 @@ export const Navbar: React.FC<NavbarProps> = ({ isAuthenticated = false, onLogou
                 <Link to="/dashboard">
                   <Button variant="ghost" size="sm">Dashboard</Button>
                 </Link>
+                <Link to="/ai-tutor">
+                  <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-950">
+                    <Bot className="h-4 w-4 mr-1" />
+                    AI Tutor
+                  </Button>
+                </Link>
+                <Link to="/community-chat">
+                  <Button variant="ghost" size="sm">
+                    <MessageCircle className="h-4 w-4 mr-1" />
+                    Community
+                  </Button>
+                </Link>
                 <Link to="/leaderboard">
                   <Button variant="ghost" size="sm">Leaderboard</Button>
                 </Link>
@@ -54,9 +66,6 @@ export const Navbar: React.FC<NavbarProps> = ({ isAuthenticated = false, onLogou
               </>
             ) : (
               <>
-                <Link to="/store">
-                  <Button variant="ghost" size="sm">Store</Button>
-                </Link>
                 <Link to="/login">
                   <Button variant="outline" size="sm">Login</Button>
                 </Link>

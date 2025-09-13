@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Filter, ShoppingCart, Heart, Star, User, MapPin, Plus, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
@@ -8,101 +8,35 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { Navbar } from '@/components/Navbar';
 
-// Mock store data
-const mockProducts = [
-  {
-    id: 1,
-    title: 'Data Structures and Algorithms in Java',
-    description: 'Complete textbook with solved examples. Excellent condition.',
-    price: 450,
-    originalPrice: 650,
-    seller: 'Alice Smith',
-    college: 'GEC Thiruvananthapuram',
-    rating: 4.8,
-    images: ['📚'],
-    category: 'Books',
-    condition: 'Like New',
-    available: true
-  },
-  {
-    id: 2,
-    title: 'Yamaha Acoustic Guitar F310',
-    description: 'Well-maintained acoustic guitar, perfect for beginners. Comes with picks and strap.',
-    price: 8500,
-    originalPrice: 12000,
-    seller: 'Bob Johnson',
-    college: 'LBS College of Engineering',
-    rating: 4.6,
-    images: ['🎸'],
-    category: 'Instruments',
-    condition: 'Good',
-    available: true
-  },
-  {
-    id: 3,
-    title: 'Computer Networks - Tanenbaum',
-    description: '5th Edition. Highlighted and bookmarked. Great for networking concepts.',
-    price: 380,
-    originalPrice: 520,
-    seller: 'Carol Davis',
-    college: 'College of Engineering, Trivandrum',
-    rating: 4.7,
-    images: ['📖'],
-    category: 'Books',
-    condition: 'Good',
-    available: true
-  },
-  {
-    id: 4,
-    title: 'Scientific Calculator Casio fx-991ES',
-    description: 'Programmable calculator in excellent working condition.',
-    price: 1200,
-    originalPrice: 1800,
-    seller: 'David Wilson',
-    college: 'Noorul Islam Centre',
-    rating: 4.9,
-    images: ['🧮'],
-    category: 'Electronics',
-    condition: 'Like New',
-    available: false
-  },
-  {
-    id: 5,
-    title: 'Digital Electronics Lab Manual',
-    description: 'Complete lab manual with circuit diagrams and procedures.',
-    price: 150,
-    originalPrice: 250,
-    seller: 'Emma Brown',
-    college: 'Francis Xavier Engineering',
-    rating: 4.5,
-    images: ['📋'],
-    category: 'Books',
-    condition: 'Good',
-    available: true
-  },
-  {
-    id: 6,
-    title: 'HP Pavilion Laptop Bag',
-    description: 'Padded laptop bag suitable for 15.6 inch laptops. Water resistant.',
-    price: 800,
-    originalPrice: 1200,
-    seller: 'Frank Miller',
-    college: 'GEC Thiruvananthapuram',
-    rating: 4.4,
-    images: ['💼'],
-    category: 'Accessories',
-    condition: 'Like New',
-    available: true
-  }
-];
+interface Product {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  original_price?: number;
+  seller_name?: string;
+  seller_college?: string;
+  category: string;
+  condition: string;
+  images: string[];
+  available: boolean;
+  created_at: string;
+  contact_method?: string;
+}
 
 export const Store: React.FC = () => {
+  const { user, signOut } = useAuth();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
   const [showSellModal, setShowSellModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   
   // Sell product form state
   const [productForm, setProductForm] = useState({
@@ -112,11 +46,62 @@ export const Store: React.FC = () => {
     originalPrice: '',
     category: '',
     condition: '',
-    images: [] as string[],
+    images: [] as File[],
     contactMethod: ''
   });
 
-  const filteredProducts = mockProducts
+  const categories = ['Books', 'Instruments', 'Electronics', 'Accessories', 'Lab Equipment', 'Sports', 'Furniture', 'Stationery'];
+  const conditions = ['Brand New', 'Like New', 'Good', 'Fair', 'Poor'];
+
+  useEffect(() => {
+    fetchProducts();
+    
+    // Set up real-time subscription
+    const subscription = supabase
+      .channel('products_changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'products'
+      }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setProducts(prev => [payload.new as Product, ...prev]);
+        } else if (payload.eventType === 'UPDATE') {
+          setProducts(prev => prev.map(product => 
+            product.id === payload.new.id ? payload.new as Product : product
+          ));
+        } else if (payload.eventType === 'DELETE') {
+          setProducts(prev => prev.filter(product => product.id !== payload.old.id));
+        }
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const fetchProducts = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching products:', error);
+      } else {
+        setProducts(data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredProducts = products
     .filter(product => {
       const matchesSearch = product.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           product.description.toLowerCase().includes(searchTerm.toLowerCase());
@@ -129,17 +114,14 @@ export const Store: React.FC = () => {
           return a.price - b.price;
         case 'price-high':
           return b.price - a.price;
-        case 'rating':
-          return b.rating - a.rating;
+        case 'title':
+          return a.title.localeCompare(b.title);
         default:
-          return b.id - a.id; // newest first
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime(); // newest first
       }
     });
 
-  const categories = ['Books', 'Instruments', 'Electronics', 'Accessories', 'Lab Equipment', 'Sports', 'Furniture', 'Stationery'];
-  const conditions = ['Brand New', 'Like New', 'Good', 'Fair', 'Poor'];
-
-  const handleRequestPurchase = (productId: number) => {
+  const handleRequestPurchase = (productId: string) => {
     // TODO: Implement purchase request functionality
     console.log('Purchase request for product:', productId);
   };
@@ -154,12 +136,10 @@ export const Store: React.FC = () => {
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files) {
-      // In a real app, you'd upload to a server and get URLs
-      // For demo purposes, we'll just store file names
-      const imageNames = Array.from(files).map(file => file.name);
+      const newFiles = Array.from(files);
       setProductForm(prev => ({
         ...prev,
-        images: [...prev.images, ...imageNames]
+        images: [...prev.images, ...newFiles]
       }));
     }
   };
@@ -171,7 +151,38 @@ export const Store: React.FC = () => {
     }));
   };
 
-  const handleSubmitProduct = () => {
+  const uploadImages = async (files: File[]): Promise<string[]> => {
+    const imageUrls: string[] = [];
+    
+    for (const file of files) {
+      try {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `products/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('products')
+          .upload(filePath, file);
+
+        if (uploadError) {
+          console.error('Error uploading image:', uploadError);
+          continue;
+        }
+
+        const { data } = supabase.storage
+          .from('products')
+          .getPublicUrl(filePath);
+
+        imageUrls.push(data.publicUrl);
+      } catch (error) {
+        console.error('Error uploading image:', error);
+      }
+    }
+
+    return imageUrls;
+  };
+
+  const handleSubmitProduct = async () => {
     // Validate form
     if (!productForm.title || !productForm.description || !productForm.price || 
         !productForm.category || !productForm.condition) {
@@ -179,28 +190,76 @@ export const Store: React.FC = () => {
       return;
     }
 
-    // TODO: Submit to API
-    console.log('Submitting product:', productForm);
+    if (!user) {
+      alert('Please login to list a product');
+      return;
+    }
+
+    setSubmitting(true);
     
-    // Reset form and close modal
-    setProductForm({
-      title: '',
-      description: '',
-      price: '',
-      originalPrice: '',
-      category: '',
-      condition: '',
-      images: [],
-      contactMethod: ''
-    });
-    setShowSellModal(false);
-    
-    alert('Product listed successfully! It will be reviewed before being published.');
+    try {
+      // Upload images if any
+      let imageUrls: string[] = [];
+      if (productForm.images.length > 0) {
+        imageUrls = await uploadImages(productForm.images);
+      }
+
+      // Get user profile for seller info
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, college_name')
+        .eq('id', user.id)
+        .single();
+
+      // Insert product into database
+      const { error } = await supabase
+        .from('products')
+        .insert({
+          title: productForm.title,
+          description: productForm.description,
+          price: parseFloat(productForm.price),
+          original_price: productForm.originalPrice ? parseFloat(productForm.originalPrice) : null,
+          category: productForm.category,
+          condition: productForm.condition,
+          seller_id: user.id,
+          seller_name: profile?.full_name || 'Anonymous',
+          seller_college: profile?.college_name || 'Unknown College',
+          contact_method: productForm.contactMethod,
+          images: imageUrls,
+          available: true
+        });
+
+      if (error) {
+        console.error('Error inserting product:', error);
+        alert('Error listing product. Please try again.');
+        return;
+      }
+
+      // Reset form and close modal
+      setProductForm({
+        title: '',
+        description: '',
+        price: '',
+        originalPrice: '',
+        category: '',
+        condition: '',
+        images: [],
+        contactMethod: ''
+      });
+      setShowSellModal(false);
+      
+      alert('Product listed successfully!');
+    } catch (error) {
+      console.error('Error submitting product:', error);
+      alert('Error listing product. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
+      <Navbar isAuthenticated={true} onLogout={signOut} />
       
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
@@ -241,7 +300,7 @@ export const Store: React.FC = () => {
               <SelectItem value="newest">Newest First</SelectItem>
               <SelectItem value="price-low">Price: Low to High</SelectItem>
               <SelectItem value="price-high">Price: High to Low</SelectItem>
-              <SelectItem value="rating">Highest Rated</SelectItem>
+              <SelectItem value="title">Title A-Z</SelectItem>
             </SelectContent>
           </Select>
 
@@ -252,78 +311,107 @@ export const Store: React.FC = () => {
         </div>
 
         {/* Products Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredProducts.map((product) => (
-            <Card key={product.id} className="group hover:shadow-lg transition-all duration-300 hover:scale-105">
-              <CardHeader className="pb-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="text-4xl mb-2">{product.images[0]}</div>
-                    <CardTitle className="text-lg line-clamp-2">{product.title}</CardTitle>
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Card key={i} className="animate-pulse">
+                <CardHeader>
+                  <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-20 bg-gray-200 rounded mb-4"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredProducts.map((product) => (
+              <Card key={product.id} className="group hover:shadow-lg transition-all duration-300 hover:scale-105">
+                <CardHeader className="pb-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      {product.images && product.images.length > 0 ? (
+                        <div className="w-full h-48 mb-4 rounded-lg overflow-hidden">
+                          <img 
+                            src={product.images[0]} 
+                            alt={product.title}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-full h-48 mb-4 rounded-lg bg-gray-200 flex items-center justify-center">
+                          <span className="text-gray-400">No Image</span>
+                        </div>
+                      )}
+                      <CardTitle className="text-lg line-clamp-2">{product.title}</CardTitle>
+                    </div>
+                    <Button variant="ghost" size="sm" className="p-2">
+                      <Heart className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <Button variant="ghost" size="sm" className="p-2">
-                    <Heart className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardHeader>
+                </CardHeader>
 
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground line-clamp-2">
-                  {product.description}
-                </p>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-muted-foreground line-clamp-2">
+                    {product.description}
+                  </p>
 
-                <div className="flex items-center space-x-2">
-                  <div className="flex items-center space-x-1">
-                    <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                    <span className="text-sm font-medium">{product.rating}</span>
-                  </div>
-                  <Badge variant="secondary">{product.condition}</Badge>
-                  <Badge variant={product.available ? "default" : "secondary"}>
-                    {product.available ? "Available" : "Sold"}
-                  </Badge>
-                </div>
-
-                <div className="space-y-2">
                   <div className="flex items-center space-x-2">
-                    <span className="text-2xl font-bold text-primary">₹{product.price}</span>
-                    <span className="text-sm text-muted-foreground line-through">₹{product.originalPrice}</span>
-                    <span className="text-sm text-green-600 font-medium">
-                      {Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}% off
-                    </span>
+                    <Badge variant="secondary">{product.condition}</Badge>
+                    <Badge variant={product.available ? "default" : "secondary"}>
+                      {product.available ? "Available" : "Sold"}
+                    </Badge>
                   </div>
-                </div>
 
-                <div className="space-y-1">
-                  <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                    <User className="h-4 w-4" />
-                    <span>{product.seller}</span>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-2xl font-bold text-primary">₹{product.price}</span>
+                      {product.original_price && (
+                        <>
+                          <span className="text-sm text-muted-foreground line-through">₹{product.original_price}</span>
+                          <span className="text-sm text-green-600 font-medium">
+                            {Math.round(((product.original_price - product.price) / product.original_price) * 100)}% off
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                    <MapPin className="h-4 w-4" />
-                    <span>{product.college}</span>
-                  </div>
-                </div>
-              </CardContent>
 
-              <CardFooter className="pt-4">
-                <Button 
-                  className="w-full" 
-                  disabled={!product.available}
-                  onClick={() => handleRequestPurchase(product.id)}
-                >
-                  {product.available ? (
-                    <>
-                      <ShoppingCart className="h-4 w-4 mr-2" />
-                      Request to Buy
-                    </>
-                  ) : (
-                    'Sold Out'
-                  )}
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                      <User className="h-4 w-4" />
+                      <span>{product.seller_name || 'Anonymous'}</span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                      <MapPin className="h-4 w-4" />
+                      <span>{product.seller_college || 'Unknown College'}</span>
+                    </div>
+                  </div>
+                </CardContent>
+
+                <CardFooter className="pt-4">
+                  <Button 
+                    className="w-full" 
+                    disabled={!product.available}
+                    onClick={() => handleRequestPurchase(product.id)}
+                  >
+                    {product.available ? (
+                      <>
+                        <ShoppingCart className="h-4 w-4 mr-2" />
+                        Request to Buy
+                      </>
+                    ) : (
+                      'Sold Out'
+                    )}
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        )}
 
         {/* Empty State */}
         {filteredProducts.length === 0 && (
@@ -465,9 +553,9 @@ export const Store: React.FC = () => {
                   <div className="space-y-2">
                     <p className="text-sm font-medium">Selected Images:</p>
                     <div className="flex flex-wrap gap-2">
-                      {productForm.images.map((image, index) => (
+                      {productForm.images.map((file, index) => (
                         <div key={index} className="flex items-center bg-gray-100 rounded-lg px-3 py-1">
-                          <span className="text-sm">{image}</span>
+                          <span className="text-sm">{file.name}</span>
                           <button
                             onClick={() => removeImage(index)}
                             className="ml-2 text-red-500 hover:text-red-700"
@@ -498,14 +586,16 @@ export const Store: React.FC = () => {
                   variant="outline" 
                   className="flex-1"
                   onClick={() => setShowSellModal(false)}
+                  disabled={submitting}
                 >
                   Cancel
                 </Button>
                 <Button 
                   className="flex-1"
                   onClick={handleSubmitProduct}
+                  disabled={submitting}
                 >
-                  List Product
+                  {submitting ? 'Listing Product...' : 'List Product'}
                 </Button>
               </div>
             </div>

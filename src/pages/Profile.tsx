@@ -9,7 +9,6 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
-import LeetCodeConnect from '@/components/LeetCodeConnect';
 import { User, Mail, School, Linkedin, Github, Trophy, Target, TrendingUp, Code, Calendar, CheckCircle, AlertCircle } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -368,7 +367,7 @@ export const Profile: React.FC = () => {
             </Card>
           </div>
 
-          {/* LeetCode Connection Section */}
+          {/* LeetCode Connection Section
           <LeetCodeConnect
             hasLeetCodeUsername={!!profile.leetcode_username}
             username={profile.leetcode_username}
@@ -377,7 +376,7 @@ export const Profile: React.FC = () => {
               fetchProfile();
               fetchUserStats();
             }}
-          />
+          /> */}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Profile Form */}

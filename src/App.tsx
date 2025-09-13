@@ -7,6 +7,8 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Landing } from "./pages/Landing";
+import HelpCentre from "./pages/HelpCentre";
+import Contact from "./pages/Contact";
 import { Login } from "./pages/Login";
 import { Signup } from "./pages/Signup";
 import { Dashboard } from "./pages/Dashboard";
@@ -16,6 +18,8 @@ import { Library } from "./pages/Library";
 import { Certificates } from "./pages/Certificates";
 import { Leaderboard } from "./pages/Leaderboard";
 import { Store } from "./pages/Store";
+import { AiTutor } from "./pages/AiTutorClean";
+import { CommunityChat } from "./pages/communityChat";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -55,6 +59,18 @@ const App = () => (
               } />
               <Route path="/leaderboard" element={<Leaderboard />} />
               <Route path="/store" element={<Store />} />
+              <Route path="/ai-tutor" element={
+                <ProtectedRoute>
+                  <AiTutor />
+                </ProtectedRoute>
+              } />
+              <Route path="/community-chat" element={
+                <ProtectedRoute>
+                  <CommunityChat />
+                </ProtectedRoute>
+              } />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/help" element={<HelpCentre />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
