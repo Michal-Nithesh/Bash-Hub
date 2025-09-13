@@ -1,0 +1,68 @@
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { GraduationCap, User, LogOut } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/ThemeToggle';
+
+interface NavbarProps {
+  isAuthenticated?: boolean;
+  onLogout?: () => void;
+}
+
+export const Navbar: React.FC<NavbarProps> = ({ isAuthenticated = false, onLogout }) => {
+  return (
+    <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16">
+          {/* Logo */}
+          <Link to="/" className="flex items-center space-x-2">
+            <div className="h-8 w-8 bg-gradient-to-r from-primary to-accent rounded-lg flex items-center justify-center">
+              <GraduationCap className="h-5 w-5 text-primary-foreground" />
+            </div>
+            <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              StudentHub
+            </span>
+          </Link>
+
+          {/* Navigation Items */}
+          <div className="flex items-center space-x-4">
+            {isAuthenticated ? (
+              <>
+                <Link to="/dashboard">
+                  <Button variant="ghost" size="sm">Dashboard</Button>
+                </Link>
+                <Link to="/leaderboard">
+                  <Button variant="ghost" size="sm">Leaderboard</Button>
+                </Link>
+                <Link to="/store">
+                  <Button variant="ghost" size="sm">Store</Button>
+                </Link>
+                <Link to="/profile">
+                  <Button variant="ghost" size="sm">
+                    <User className="h-4 w-4" />
+                  </Button>
+                </Link>
+                <Button variant="ghost" size="sm" onClick={onLogout}>
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </>
+            ) : (
+              <>
+                <Link to="/store">
+                  <Button variant="ghost" size="sm">Store</Button>
+                </Link>
+                <Link to="/login">
+                  <Button variant="outline" size="sm">Login</Button>
+                </Link>
+                <Link to="/signup">
+                  <Button variant="hero" size="sm">Get Started</Button>
+                </Link>
+              </>
+            )}
+            <ThemeToggle />
+          </div>
+        </div>
+      </div>
+    </nav>
+  );
+};
