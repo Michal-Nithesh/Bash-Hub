@@ -106,10 +106,10 @@ export const Profile: React.FC = () => {
 
     setStatsLoading(true);
     try {
-      // Get user's profile for points and streak
+      // Get user's profile for points, streak, and leetcode_username
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('leetcode_points, streak_count')
+        .select('leetcode_points, streak_count, leetcode_username, total_problems_solved')
         .eq('id', user.id)
         .single();
 
@@ -128,23 +128,46 @@ export const Profile: React.FC = () => {
         .eq('user_id', user.id)
         .eq('completed', true);
 
-      // Get LeetCode stats
-      const { data: leetcodeData } = await supabase
-        .from('leetcode_stats')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
+      // Fetch LeetCode stats from API
+      let leetcodeSolved = 0;
+      let leetcodeApiStats = null;
+
+      if (profileData?.leetcode_username) {
+        try {
+          const response = await fetch(`https://leetcode-stats-api.herokuapp.com/${profileData.leetcode_username}`);
+          if (response.ok) {
+            const apiData = await response.json();
+            leetcodeSolved = apiData.totalSolved || 0;
+            leetcodeApiStats = {
+              total_solved: apiData.totalSolved || 0,
+              easy_solved: apiData.easySolved || 0,
+              medium_solved: apiData.mediumSolved || 0,
+              hard_solved: apiData.hardSolved || 0,
+              contest_rating: apiData.ranking || 0,
+              acceptance_rate: apiData.acceptanceRate || 0,
+              streak_count: profileData.streak_count || 0, // Use profile streak
+            };
+          }
+        } catch (error) {
+          console.warn('Error fetching LeetCode API data:', error);
+          // Fall back to database value if available
+          leetcodeSolved = profileData.total_problems_solved || 0;
+        }
+      } else {
+        // No LeetCode username, use database fallback
+        leetcodeSolved = profileData?.total_problems_solved || 0;
+      }
 
       setUserStats({
         totalPoints: profileData?.leetcode_points || 0,
         streak: profileData?.streak_count || 0,
         rank: rank,
-        leetcodeSolved: leetcodeData?.total_solved || 0,
+        leetcodeSolved: leetcodeSolved,
         tasksCompleted: tasksData?.length || 0,
       });
 
-      if (leetcodeData) {
-        setLeetcodeStats(leetcodeData);
+      if (leetcodeApiStats) {
+        setLeetcodeStats(leetcodeApiStats);
       }
     } catch (error) {
       console.error('Error fetching stats:', error);
@@ -222,21 +245,73 @@ export const Profile: React.FC = () => {
 
     setLoading(true);
 
-    const { error } = await supabase
-      .from('profiles')
-      .update(profile)
-      .eq('id', user.id);
+    try {
+      // Prepare the update data with proper types
+      const updateData = {
+        full_name: profile.full_name?.trim() || null,
+        personal_email: profile.personal_email?.trim() || null,
+        college_email: profile.college_email?.trim() || null,
+        leetcode_username: profile.leetcode_username?.trim() || null,
+        linkedin_url: profile.linkedin_url?.trim() || null,
+        college_name: profile.college_name?.trim() || null,
+        bio: profile.bio?.trim() || null,
+        year_of_study: profile.year_of_study ? parseInt(profile.year_of_study, 10) : null,
+        branch: profile.branch?.trim() || null,
+        phone_number: profile.phone_number?.trim() || null,
+      };
 
-    if (error) {
+      // Validate year_of_study
+      if (updateData.year_of_study && (updateData.year_of_study < 1 || updateData.year_of_study > 8 || isNaN(updateData.year_of_study))) {
+        toast({
+          title: "Validation Error",
+          description: "Year of study must be a number between 1 and 8",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Validate LeetCode username format (optional but if provided, should be valid)
+      if (updateData.leetcode_username) {
+        const leetcodeUsernameRegex = /^[a-zA-Z0-9_-]+$/;
+        if (!leetcodeUsernameRegex.test(updateData.leetcode_username)) {
+          toast({
+            title: "Validation Error",
+            description: "LeetCode username can only contain letters, numbers, underscores, and hyphens",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .update(updateData)
+        .eq('id', user.id);
+
+      if (error) {
+        console.error('Update error:', error);
+        toast({
+          title: "Error",
+          description: `Failed to update profile: ${error.message}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "Profile updated successfully",
+        });
+        // Refresh the profile data and stats (especially if LeetCode username was updated)
+        fetchProfile();
+        fetchUserStats();
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err);
       toast({
         title: "Error",
-        description: "Failed to update profile",
+        description: "An unexpected error occurred",
         variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Success",
-        description: "Profile updated successfully",
       });
     }
 
@@ -310,6 +385,12 @@ export const Profile: React.FC = () => {
                       <Badge variant="secondary">{userStats.totalPoints}</Badge>
                     </div>
                     <div className="flex justify-between text-sm">
+                      <span>LeetCode Solved</span>
+                      <Badge variant="default" className="bg-green-600 hover:bg-green-700">
+                        {userStats.leetcodeSolved}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between text-sm">
                       <span>Rank</span>
                       <Badge variant="outline">#{userStats.rank}</Badge>
                     </div>
@@ -359,7 +440,15 @@ export const Profile: React.FC = () => {
                     </div>
                   </div>
                 ) : profile.leetcode_username ? (
-                  <p className="text-sm text-muted-foreground">Connect your LeetCode to see stats</p>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Problems Solved</span>
+                      <Badge variant="secondary">{userStats?.leetcodeSolved || 0}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Stats from @{profile.leetcode_username}
+                    </p>
+                  </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">Add LeetCode username to track progress</p>
                 )}
@@ -472,6 +561,9 @@ export const Profile: React.FC = () => {
                     <Label htmlFor="yearOfStudy">Year of Study</Label>
                     <Input
                       id="yearOfStudy"
+                      type="number"
+                      min="1"
+                      max="8"
                       placeholder="e.g., 2, 3, 4"
                       value={profile.year_of_study}
                       onChange={(e) => handleInputChange('year_of_study', e.target.value)}
@@ -507,6 +599,28 @@ export const Profile: React.FC = () => {
                     value={profile.bio}
                     onChange={(e) => handleInputChange('bio', e.target.value)}
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="leetcodeUsername">LeetCode Username</Label>
+                  <div className="relative">
+                    <Code className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="leetcodeUsername"
+                      placeholder="your-leetcode-username"
+                      className="pl-10"
+                      value={profile.leetcode_username}
+                      onChange={(e) => handleInputChange('leetcode_username', e.target.value)}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    🔗 Enter your LeetCode username to automatically track your coding progress and compete on the leaderboard
+                  </p>
+                  {profile.leetcode_username && (
+                    <p className="text-xs text-green-600">
+                      ✓ Stats will be fetched from: leetcode.com/u/{profile.leetcode_username}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -583,10 +697,9 @@ export const Profile: React.FC = () => {
           </Card>
         </div>
       </div>
-      
-      <Footer />
     </div>
     </div>
+    <Footer />
     </div>
   );
 };

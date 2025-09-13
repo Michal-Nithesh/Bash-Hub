@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, ShoppingCart, Heart, Star, User, MapPin, Plus, Upload, X } from 'lucide-react';
+import { Search, Filter, ShoppingCart, Heart, Star, User, MapPin, Plus, Upload, X, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,8 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Navbar } from '@/components/Navbar';
+import { PaymentModal, BuyerDetails } from '@/components/PaymentModal';
+import { initiatePayment, verifyPayment, PaymentDetails } from '@/lib/razorpay';
 
 interface Product {
   id: string;
@@ -18,6 +20,7 @@ interface Product {
   description: string;
   price: number;
   original_price?: number;
+  seller_id: string;
   seller_name?: string;
   seller_college?: string;
   category: string;
@@ -26,6 +29,10 @@ interface Product {
   available: boolean;
   created_at: string;
   contact_method?: string;
+  profiles?: {
+    full_name?: string;
+    college_name?: string;
+  };
 }
 
 export const Store: React.FC = () => {
@@ -37,6 +44,12 @@ export const Store: React.FC = () => {
   const [sortBy, setSortBy] = useState('newest');
   const [showSellModal, setShowSellModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  
+  // Payment related state
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [isPaymentProcessing, setIsPaymentProcessing] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
   
   // Sell product form state
   const [productForm, setProductForm] = useState({
@@ -51,7 +64,7 @@ export const Store: React.FC = () => {
   });
 
   const categories = ['Books', 'Instruments', 'Electronics', 'Accessories', 'Lab Equipment', 'Sports', 'Furniture', 'Stationery'];
-  const conditions = ['Brand New', 'Like New', 'Good', 'Fair', 'Poor'];
+  const conditions = ['new', 'like_new', 'good', 'fair', 'poor'];
 
   useEffect(() => {
     fetchProducts();
@@ -84,15 +97,56 @@ export const Store: React.FC = () => {
   const fetchProducts = async () => {
     setLoading(true);
     try {
+      console.log('Fetching products from Supabase...');
       const { data, error } = await supabase
         .from('products')
-        .select('*')
+        .select(`
+          *,
+          profiles:seller_id (
+            full_name,
+            college_name
+          )
+        `)
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching products:', error);
+        console.error('Error fetching products with profiles:', error);
+        
+        // Try without profiles join as fallback
+        const { data: simpleData, error: simpleError } = await supabase
+          .from('products')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (simpleError) {
+          console.error('Error fetching products (simple):', simpleError);
+        } else {
+          console.log('Fetched products without profiles:', simpleData);
+          const productsWithDefaults = simpleData?.map(product => ({
+            ...product,
+            seller_name: 'Anonymous',
+            seller_college: 'Unknown College'
+          })) || [];
+          setProducts(productsWithDefaults);
+        }
       } else {
-        setProducts(data || []);
+        console.log('Raw data from Supabase:', data);
+        // Transform data to include seller info in the expected format
+        const transformedData = data?.map(product => ({
+          ...product,
+          seller_name: product.profiles?.full_name || 'Anonymous',
+          seller_college: product.profiles?.college_name || 'Unknown College'
+        })) || [];
+        console.log('Transformed data:', transformedData);
+        setProducts(transformedData);
+        
+        // If no products found, log helpful message
+        if (transformedData.length === 0) {
+          console.log('No products found in database. To add sample products:');
+          console.log('1. Go to your Supabase SQL Editor');
+          console.log('2. Run the sample_products.sql script');
+          console.log('3. Or use the "Start Selling" button to add products');
+        }
       }
     } catch (error) {
       console.error('Error fetching products:', error);
@@ -122,8 +176,63 @@ export const Store: React.FC = () => {
     });
 
   const handleRequestPurchase = (productId: string) => {
-    // TODO: Implement purchase request functionality
-    console.log('Purchase request for product:', productId);
+    const product = products.find(p => p.id === productId);
+    if (product) {
+      setSelectedProduct(product);
+      setShowPaymentModal(true);
+    }
+  };
+
+  const handlePayment = async (buyerDetails: BuyerDetails) => {
+    if (!selectedProduct || !user) {
+      alert('Please login to make a purchase');
+      return;
+    }
+
+    setIsPaymentProcessing(true);
+    
+    // Close the custom modal to avoid z-index conflicts with Razorpay
+    setShowPaymentModal(false);
+
+    try {
+      const paymentDetails: PaymentDetails = {
+        amount: selectedProduct.price,
+        currency: 'INR',
+        productId: selectedProduct.id,
+        productTitle: selectedProduct.title,
+        sellerName: selectedProduct.seller_name || 'Anonymous',
+        buyerEmail: buyerDetails.email,
+        buyerName: buyerDetails.name,
+      };
+
+      console.log('Starting payment process with details:', paymentDetails);
+
+      // Initiate Razorpay payment
+      const paymentResponse = await initiatePayment(paymentDetails);
+      
+      // Verify payment
+      const verificationResult = await verifyPayment(paymentResponse);
+      
+      if (verificationResult.success) {
+        console.log('Payment successful:', paymentResponse);
+        
+        // Show success state without database operations
+        setPaymentSuccess(true);
+        
+        alert(`Payment successful! 
+Payment ID: ${paymentResponse.razorpay_payment_id}
+The seller will be contacted about your purchase.`);
+      }
+    } catch (error) {
+      console.error('Payment error:', error);
+      
+      // Reopen the payment modal if payment failed
+      setShowPaymentModal(true);
+      
+      alert('Payment failed. Please try again.');
+    } finally {
+      setIsPaymentProcessing(false);
+    }
   };
 
   const handleSellFormChange = (field: string, value: string) => {
@@ -222,8 +331,6 @@ export const Store: React.FC = () => {
           category: productForm.category,
           condition: productForm.condition,
           seller_id: user.id,
-          seller_name: profile?.full_name || 'Anonymous',
-          seller_college: profile?.college_name || 'Unknown College',
           contact_method: productForm.contactMethod,
           images: imageUrls,
           available: true
@@ -259,7 +366,7 @@ export const Store: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar isAuthenticated={true} onLogout={signOut} />
+      <Navbar isAuthenticated={!!user} onLogout={signOut} />
       
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
@@ -269,7 +376,7 @@ export const Store: React.FC = () => {
         </div>
 
         {/* Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
@@ -304,77 +411,113 @@ export const Store: React.FC = () => {
             </SelectContent>
           </Select>
 
-          <Button className="w-full">
+          <Button className="w-full" variant="outline">
             <Filter className="h-4 w-4 mr-2" />
             More Filters
           </Button>
         </div>
 
         {/* Products Grid */}
+        {/* Debug Info and Refresh */}
+        <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-muted/50 rounded-lg">
+          <div className="text-sm text-muted-foreground">
+            <span className="font-medium">Products:</span> {products.length} total • <span className="font-medium">Filtered:</span> {filteredProducts.length} • <span className="font-medium">Status:</span> {loading ? 'Loading...' : 'Ready'}
+          </div>
+          <Button variant="outline" size="sm" onClick={fetchProducts} disabled={loading}>
+            {loading ? 'Loading...' : 'Refresh'}
+          </Button>
+        </div>
+        
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Card key={i} className="animate-pulse">
-                <CardHeader>
-                  <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                  <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Card key={i} className="animate-pulse flex flex-col">
+                <CardHeader className="pb-3">
+                  <div className="w-full h-48 bg-gray-200 rounded-lg mb-3"></div>
+                  <div className="h-5 bg-gray-200 rounded w-3/4"></div>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-20 bg-gray-200 rounded mb-4"></div>
-                  <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+                <CardContent className="space-y-3 flex-1">
+                  <div className="h-4 bg-gray-200 rounded w-full"></div>
+                  <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+                  <div className="flex gap-2">
+                    <div className="h-6 bg-gray-200 rounded w-16"></div>
+                    <div className="h-6 bg-gray-200 rounded w-20"></div>
+                  </div>
+                  <div className="h-8 bg-gray-200 rounded w-24"></div>
+                  <div className="space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-32"></div>
+                    <div className="h-4 bg-gray-200 rounded w-40"></div>
+                  </div>
                 </CardContent>
+                <CardFooter className="pt-3 mt-auto">
+                  <div className="h-10 bg-gray-200 rounded w-full"></div>
+                </CardFooter>
               </Card>
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredProducts.map((product) => (
-              <Card key={product.id} className="group hover:shadow-lg transition-all duration-300 hover:scale-105">
-                <CardHeader className="pb-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      {product.images && product.images.length > 0 ? (
-                        <div className="w-full h-48 mb-4 rounded-lg overflow-hidden">
-                          <img 
-                            src={product.images[0]} 
-                            alt={product.title}
-                            className="w-full h-full object-cover"
-                          />
+              <Card key={product.id} className="group hover:shadow-lg transition-all duration-300 hover:scale-[1.02] flex flex-col">
+                <CardHeader className="pb-3">
+                  <div className="relative">
+                    {product.images && product.images.length > 0 ? (
+                      <div className="w-full h-48 mb-3 rounded-lg overflow-hidden bg-gray-100">
+                        <img 
+                          src={product.images[0]} 
+                          alt={product.title}
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                          onError={(e) => {
+                            e.currentTarget.src = 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500&h=300&fit=crop';
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-full h-48 mb-3 rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                        <div className="text-center">
+                          <div className="text-4xl mb-2">📦</div>
+                          <span className="text-gray-500 text-sm">No Image</span>
                         </div>
-                      ) : (
-                        <div className="w-full h-48 mb-4 rounded-lg bg-gray-200 flex items-center justify-center">
-                          <span className="text-gray-400">No Image</span>
-                        </div>
-                      )}
-                      <CardTitle className="text-lg line-clamp-2">{product.title}</CardTitle>
-                    </div>
-                    <Button variant="ghost" size="sm" className="p-2">
-                      <Heart className="h-4 w-4" />
+                      </div>
+                    )}
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="absolute top-2 right-2 p-2 bg-white/80 hover:bg-white rounded-full shadow-sm"
+                    >
+                      <Heart className="h-4 w-4 text-gray-600" />
                     </Button>
                   </div>
+                  <CardTitle className="text-lg line-clamp-2 leading-tight">{product.title}</CardTitle>
                 </CardHeader>
 
-                <CardContent className="space-y-4">
-                  <p className="text-sm text-muted-foreground line-clamp-2">
+                <CardContent className="space-y-3 flex-1">
+                  <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
                     {product.description}
                   </p>
 
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="secondary">{product.condition}</Badge>
-                    <Badge variant={product.available ? "default" : "secondary"}>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary" className="text-xs">
+                      {product.condition === 'new' ? 'Brand New' :
+                       product.condition === 'like_new' ? 'Like New' :
+                       product.condition === 'good' ? 'Good' :
+                       product.condition === 'fair' ? 'Fair' :
+                       product.condition === 'poor' ? 'Poor' : product.condition}
+                    </Badge>
+                    <Badge variant={product.available ? "default" : "secondary"} className="text-xs">
                       {product.available ? "Available" : "Sold"}
                     </Badge>
                   </div>
 
                   <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-2xl font-bold text-primary">₹{product.price}</span>
+                    <div className="flex items-baseline space-x-2 flex-wrap">
+                      <span className="text-2xl font-bold text-primary">₹{product.price.toLocaleString()}</span>
                       {product.original_price && (
                         <>
-                          <span className="text-sm text-muted-foreground line-through">₹{product.original_price}</span>
-                          <span className="text-sm text-green-600 font-medium">
+                          <span className="text-sm text-muted-foreground line-through">₹{product.original_price.toLocaleString()}</span>
+                          <Badge variant="destructive" className="text-xs">
                             {Math.round(((product.original_price - product.price) / product.original_price) * 100)}% off
-                          </span>
+                          </Badge>
                         </>
                       )}
                     </div>
@@ -382,21 +525,22 @@ export const Store: React.FC = () => {
 
                   <div className="space-y-1">
                     <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                      <User className="h-4 w-4" />
-                      <span>{product.seller_name || 'Anonymous'}</span>
+                      <User className="h-4 w-4 flex-shrink-0" />
+                      <span className="truncate">{product.seller_name || 'Anonymous'}</span>
                     </div>
                     <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                      <MapPin className="h-4 w-4" />
-                      <span>{product.seller_college || 'Unknown College'}</span>
+                      <MapPin className="h-4 w-4 flex-shrink-0" />
+                      <span className="truncate">{product.seller_college || 'Unknown College'}</span>
                     </div>
                   </div>
                 </CardContent>
 
-                <CardFooter className="pt-4">
+                <CardFooter className="pt-3 mt-auto">
                   <Button 
                     className="w-full" 
                     disabled={!product.available}
                     onClick={() => handleRequestPurchase(product.id)}
+                    variant={product.available ? "default" : "secondary"}
                   >
                     {product.available ? (
                       <>
@@ -414,11 +558,26 @@ export const Store: React.FC = () => {
         )}
 
         {/* Empty State */}
-        {filteredProducts.length === 0 && (
+        {!loading && filteredProducts.length === 0 && (
           <div className="text-center py-12">
             <div className="text-6xl mb-4">📦</div>
-            <h3 className="text-xl font-semibold mb-2">No products found</h3>
-            <p className="text-muted-foreground">Try adjusting your search criteria or browse different categories</p>
+            <h3 className="text-xl font-semibold mb-2">
+              {products.length === 0 ? 'No products available yet' : 'No products found'}
+            </h3>
+            <p className="text-muted-foreground mb-4">
+              {products.length === 0 
+                ? 'Be the first to list something in the Student Store!' 
+                : 'Try adjusting your search criteria or browse different categories'
+              }
+            </p>
+            {products.length === 0 && (
+              <Button 
+                onClick={() => setShowSellModal(true)}
+                className="mt-4"
+              >
+                List Your First Product
+              </Button>
+            )}
           </div>
         )}
 
@@ -427,9 +586,9 @@ export const Store: React.FC = () => {
           <h3 className="text-2xl font-bold mb-2">Have something to sell?</h3>
           <p className="text-muted-foreground mb-4">List your books, instruments, and study materials for free</p>
           <Button 
-            variant="hero" 
             size="lg"
             onClick={() => setShowSellModal(true)}
+            className="px-8 py-3 text-lg"
           >
             Start Selling
           </Button>
@@ -601,7 +760,39 @@ export const Store: React.FC = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Payment Modal */}
+        <PaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => {
+            setShowPaymentModal(false);
+            setSelectedProduct(null);
+          }}
+          product={selectedProduct}
+          onPayment={handlePayment}
+          isProcessing={isPaymentProcessing}
+        />
+
+        {/* Payment Success Dialog */}
+        <Dialog open={paymentSuccess} onOpenChange={setPaymentSuccess}>
+          <DialogContent className="max-w-md text-center">
+            <DialogHeader>
+              <DialogTitle className="flex items-center justify-center gap-2 text-green-600">
+                <CheckCircle className="w-6 h-6" />
+                Payment Successful!
+              </DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <p className="text-muted-foreground mb-4">
+                Your payment has been processed successfully. The seller has been notified and will contact you soon.
+              </p>
+              <Button onClick={() => setPaymentSuccess(false)} className="w-full">
+                Continue Shopping
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
-};
+}

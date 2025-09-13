@@ -7,7 +7,43 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true
+  }
+});
+
+// Utility function to ensure valid session
+export const ensureValidSession = async () => {
+  const { data: { session }, error } = await supabase.auth.getSession();
+  
+  if (error) {
+    console.error('Session error:', error);
+    throw new Error('Authentication session error');
+  }
+  
+  if (!session) {
+    throw new Error('No active session');
+  }
+  
+  // Check if token is about to expire (within 5 minutes)
+  const expiresAt = session.expires_at;
+  const now = Math.floor(Date.now() / 1000);
+  const timeUntilExpiry = expiresAt - now;
+  
+  if (timeUntilExpiry < 300) { // Less than 5 minutes
+    console.log('Token expiring soon, refreshing...');
+    const { error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError) {
+      console.error('Token refresh failed:', refreshError);
+      throw new Error('Failed to refresh authentication token');
+    }
+  }
+  
+  return session;
+};
 
 export type Json =
   | string

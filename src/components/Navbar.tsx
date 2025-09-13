@@ -49,6 +49,12 @@ export const Navbar: React.FC<NavbarProps> = ({ isAuthenticated = false, onLogou
                 <Link to="/store">
                   <Button variant="ghost" size="sm">Store</Button>
                 </Link>
+                <Link to="/library">
+                  <Button variant="ghost" size="sm">Library</Button>
+                </Link>
+                <Link to="/focus-mode">
+                  <Button variant="ghost" size="sm">Focus Mode</Button>
+                </Link>
                 <Link to="/timetable">
                   <Button variant="ghost" size="sm">Timetable</Button>
                 </Link>

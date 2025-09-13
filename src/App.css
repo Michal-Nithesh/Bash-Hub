@@ -40,3 +40,20 @@
 .read-the-docs {
   color: #888;
 }
+
+/* Razorpay modal fixes */
+.razorpay-checkout-frame,
+.razorpay-backdrop,
+.razorpay-container {
+  z-index: 999999 !important;
+  pointer-events: auto !important;
+}
+
+.razorpay-checkout-frame iframe {
+  pointer-events: auto !important;
+}
+
+/* Ensure Razorpay overlay doesn't conflict with other modals */
+.razorpay-backdrop {
+  background-color: rgba(0, 0, 0, 0.6) !important;
+}
