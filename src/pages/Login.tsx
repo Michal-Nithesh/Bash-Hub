@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { Eye, EyeOff, Mail, Lock, GraduationCap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +9,8 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export const Login: React.FC = () => {
+  const { signIn } = useAuth();
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -22,11 +25,13 @@ export const Login: React.FC = () => {
     setError('');
 
     try {
-      // TODO: Implement Supabase authentication
-      console.log('Login attempt:', formData);
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      // After successful login, redirect to dashboard
+      const { error } = await signIn(formData.email, formData.password);
+      
+      if (error) {
+        setError(error.message);
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error) {
       setError('Invalid email or password. Please try again.');
     } finally {

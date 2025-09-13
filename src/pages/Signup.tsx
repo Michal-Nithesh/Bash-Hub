@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { Eye, EyeOff, Mail, Lock, User, GraduationCap, School, Linkedin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +23,8 @@ const COLLEGES = [
 ];
 
 export const Signup: React.FC = () => {
+  const { signUp } = useAuth();
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -56,11 +59,19 @@ export const Signup: React.FC = () => {
     }
 
     try {
-      // TODO: Implement Supabase authentication and profile creation
-      console.log('Signup attempt:', formData);
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      // After successful signup, redirect to dashboard
+      const { error } = await signUp(formData.personalEmail, formData.password, {
+        full_name: formData.fullName,
+        college_email: formData.collegeEmail,
+        leetcode_username: formData.leetcodeUsername,
+        linkedin_url: formData.linkedinUrl,
+        college_name: formData.collegeName === 'Other (Please specify)' ? formData.otherCollege : formData.collegeName,
+      });
+
+      if (error) {
+        setError(error.message);
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error) {
       setError('Failed to create account. Please try again.');
     } finally {

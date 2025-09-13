@@ -1,5 +1,8 @@
-import React from 'react';
-import { Calendar, Trophy, Target, TrendingUp, Plus, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
+import { Calendar, Trophy, Target, TrendingUp, Plus, CheckCircle, Clock } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -31,15 +34,49 @@ const mockEvents = [
   { title: 'Hackathon 2024', date: '2024-01-20', time: '9:00 AM' }
 ];
 
-export const Dashboard: React.FC = () => {
-  const handleLogout = () => {
-    // TODO: Implement logout logic
-    console.log('Logout clicked');
-  };
+interface TimetableEntry {
+  id: string;
+  subject: string;
+  location: string;
+  period: number;
+}
 
+export const Dashboard: React.FC = () => {
+  const { user, signOut } = useAuth();
+  const [todayTimetable, setTodayTimetable] = useState<TimetableEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      fetchTodayTimetable();
+    }
+  }, [user]);
+
+  const fetchTodayTimetable = async () => {
+    if (!user) return;
+
+    setLoading(true);
+    const today = new Date().getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const weekday = today === 0 ? 7 : today; // Convert Sunday to 7, keep others same
+
+    const { data, error } = await supabase
+      .from('timetables')
+      .select('*')
+      .eq('owner', user.id)
+      .eq('weekday', weekday)
+      .order('period');
+
+    if (error) {
+      console.error('Error fetching timetable:', error);
+    } else {
+      setTodayTimetable(data || []);
+    }
+
+    setLoading(false);
+  };
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar isAuthenticated={true} onLogout={handleLogout} />
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
+      <Navbar isAuthenticated={true} onLogout={signOut} />
       
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
@@ -109,8 +146,47 @@ export const Dashboard: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Today's Timetable */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  Today's Schedule
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="text-center py-4">
+                    <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full mx-auto"></div>
+                  </div>
+                ) : todayTimetable.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No classes scheduled for today</p>
+                    <Link to="/timetable" className="text-primary hover:underline text-sm">
+                      Add your timetable →
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {todayTimetable.map((entry) => (
+                      <div key={entry.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                        <div>
+                          <div className="font-medium">{entry.subject}</div>
+                          <div className="text-sm text-muted-foreground">{entry.location}</div>
+                        </div>
+                        <Badge variant="outline">Period {entry.period}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
           {/* Today's Tasks */}
-          <div className="lg:col-span-2">
+          <div>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>

@@ -37,6 +37,12 @@ export const Navbar: React.FC<NavbarProps> = ({ isAuthenticated = false, onLogou
                 <Link to="/store">
                   <Button variant="ghost" size="sm">Store</Button>
                 </Link>
+                <Link to="/timetable">
+                  <Button variant="ghost" size="sm">Timetable</Button>
+                </Link>
+                <Link to="/certificates">
+                  <Button variant="ghost" size="sm">Certificates</Button>
+                </Link>
                 <Link to="/profile">
                   <Button variant="ghost" size="sm">
                     <User className="h-4 w-4" />
