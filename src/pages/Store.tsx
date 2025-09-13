@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { Search, Filter, ShoppingCart, Heart, Star, User, MapPin } from 'lucide-react';
+import { Search, Filter, ShoppingCart, Heart, Star, User, MapPin, Plus, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { Navbar } from '@/components/Navbar';
 
 // Mock store data
@@ -99,6 +102,19 @@ export const Store: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
+  const [showSellModal, setShowSellModal] = useState(false);
+  
+  // Sell product form state
+  const [productForm, setProductForm] = useState({
+    title: '',
+    description: '',
+    price: '',
+    originalPrice: '',
+    category: '',
+    condition: '',
+    images: [] as string[],
+    contactMethod: ''
+  });
 
   const filteredProducts = mockProducts
     .filter(product => {
@@ -120,11 +136,66 @@ export const Store: React.FC = () => {
       }
     });
 
-  const categories = ['Books', 'Instruments', 'Electronics', 'Accessories'];
+  const categories = ['Books', 'Instruments', 'Electronics', 'Accessories', 'Lab Equipment', 'Sports', 'Furniture', 'Stationery'];
+  const conditions = ['Brand New', 'Like New', 'Good', 'Fair', 'Poor'];
 
   const handleRequestPurchase = (productId: number) => {
     // TODO: Implement purchase request functionality
     console.log('Purchase request for product:', productId);
+  };
+
+  const handleSellFormChange = (field: string, value: string) => {
+    setProductForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files) {
+      // In a real app, you'd upload to a server and get URLs
+      // For demo purposes, we'll just store file names
+      const imageNames = Array.from(files).map(file => file.name);
+      setProductForm(prev => ({
+        ...prev,
+        images: [...prev.images, ...imageNames]
+      }));
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setProductForm(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleSubmitProduct = () => {
+    // Validate form
+    if (!productForm.title || !productForm.description || !productForm.price || 
+        !productForm.category || !productForm.condition) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    // TODO: Submit to API
+    console.log('Submitting product:', productForm);
+    
+    // Reset form and close modal
+    setProductForm({
+      title: '',
+      description: '',
+      price: '',
+      originalPrice: '',
+      category: '',
+      condition: '',
+      images: [],
+      contactMethod: ''
+    });
+    setShowSellModal(false);
+    
+    alert('Product listed successfully! It will be reviewed before being published.');
   };
 
   return (
@@ -267,10 +338,179 @@ export const Store: React.FC = () => {
         <div className="mt-12 p-8 bg-gradient-to-r from-primary/10 to-accent/10 rounded-lg text-center">
           <h3 className="text-2xl font-bold mb-2">Have something to sell?</h3>
           <p className="text-muted-foreground mb-4">List your books, instruments, and study materials for free</p>
-          <Button variant="hero" size="lg">
+          <Button 
+            variant="hero" 
+            size="lg"
+            onClick={() => setShowSellModal(true)}
+          >
             Start Selling
           </Button>
         </div>
+
+        {/* Sell Product Modal */}
+        <Dialog open={showSellModal} onOpenChange={setShowSellModal}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-2xl">List Your Product</DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-6 py-4">
+              {/* Product Title */}
+              <div className="space-y-2">
+                <Label htmlFor="title">Product Title *</Label>
+                <Input
+                  id="title"
+                  placeholder="e.g., Data Structures and Algorithms Textbook"
+                  value={productForm.title}
+                  onChange={(e) => handleSellFormChange('title', e.target.value)}
+                />
+              </div>
+
+              {/* Category */}
+              <div className="space-y-2">
+                <Label htmlFor="category">Category *</Label>
+                <Select onValueChange={(value) => handleSellFormChange('category', value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map(category => (
+                      <SelectItem key={category} value={category}>{category}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <Label htmlFor="description">Description *</Label>
+                <Textarea
+                  id="description"
+                  placeholder="Describe your product's condition, features, and any included accessories..."
+                  rows={4}
+                  value={productForm.description}
+                  onChange={(e) => handleSellFormChange('description', e.target.value)}
+                />
+              </div>
+
+              {/* Condition */}
+              <div className="space-y-2">
+                <Label htmlFor="condition">Condition *</Label>
+                <Select onValueChange={(value) => handleSellFormChange('condition', value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select condition" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {conditions.map(condition => (
+                      <SelectItem key={condition} value={condition}>{condition}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Pricing */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="price">Selling Price (₹) *</Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    placeholder="1200"
+                    value={productForm.price}
+                    onChange={(e) => handleSellFormChange('price', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="originalPrice">Original Price (₹)</Label>
+                  <Input
+                    id="originalPrice"
+                    type="number"
+                    placeholder="1800"
+                    value={productForm.originalPrice}
+                    onChange={(e) => handleSellFormChange('originalPrice', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Images */}
+              <div className="space-y-2">
+                <Label>Product Images</Label>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                  <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                  <div className="text-sm text-gray-600 mb-2">
+                    Click to upload or drag and drop
+                  </div>
+                  <div className="text-xs text-gray-500 mb-4">
+                    PNG, JPG, GIF up to 10MB
+                  </div>
+                  <Input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                    id="image-upload"
+                  />
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => document.getElementById('image-upload')?.click()}
+                  >
+                    Choose Files
+                  </Button>
+                </div>
+                
+                {/* Display selected images */}
+                {productForm.images.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Selected Images:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {productForm.images.map((image, index) => (
+                        <div key={index} className="flex items-center bg-gray-100 rounded-lg px-3 py-1">
+                          <span className="text-sm">{image}</span>
+                          <button
+                            onClick={() => removeImage(index)}
+                            className="ml-2 text-red-500 hover:text-red-700"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Contact Method */}
+              <div className="space-y-2">
+                <Label htmlFor="contact">Preferred Contact Method</Label>
+                <Input
+                  id="contact"
+                  placeholder="e.g., WhatsApp: +91 9876543210 or Email: user@example.com"
+                  value={productForm.contactMethod}
+                  onChange={(e) => handleSellFormChange('contactMethod', e.target.value)}
+                />
+              </div>
+
+              {/* Submit Buttons */}
+              <div className="flex gap-3 pt-4">
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => setShowSellModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  className="flex-1"
+                  onClick={handleSubmitProduct}
+                >
+                  List Product
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

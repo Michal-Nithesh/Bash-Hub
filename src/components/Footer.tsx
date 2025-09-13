@@ -14,7 +14,7 @@ export const Footer: React.FC = () => {
                 <GraduationCap className="h-5 w-5 text-primary-foreground" />
               </div>
               <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                StudentHub
+                BashHub
               </span>
             </div>
             <p className="text-muted-foreground text-sm">
@@ -49,7 +49,7 @@ export const Footer: React.FC = () => {
             <div className="space-y-2 text-sm text-muted-foreground">
               <div className="flex items-center space-x-2">
                 <Mail className="h-4 w-4" />
-                <span>support@studenthub.com</span>
+                <span>support@BashHub.com</span>
               </div>
               <div className="flex items-center space-x-2">
                 <Phone className="h-4 w-4" />
@@ -64,7 +64,7 @@ export const Footer: React.FC = () => {
         </div>
 
         <div className="border-t mt-8 pt-8 text-center text-sm text-muted-foreground">
-          <p>&copy; 2024 StudentHub. All rights reserved. Built for student success.</p>
+          <p>&copy; 2024 BashHub. All rights reserved. Built for student success.</p>
         </div>
       </div>
     </footer>

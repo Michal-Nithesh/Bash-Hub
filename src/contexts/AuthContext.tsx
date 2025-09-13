@@ -52,10 +52,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       password,
       options: {
         data: metadata,
+        emailRedirectTo: undefined, // Disable email confirmation redirect
       },
     });
 
+    // Check if user was created successfully
     if (data.user && !error) {
+      // If email confirmation is disabled, the user should be immediately confirmed
       // Create profile after signup
       const { error: profileError } = await supabase
         .from('profiles')

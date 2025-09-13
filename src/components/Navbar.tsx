@@ -20,7 +20,7 @@ export const Navbar: React.FC<NavbarProps> = ({ isAuthenticated = false, onLogou
               <GraduationCap className="h-5 w-5 text-primary-foreground" />
             </div>
             <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              StudentHub
+              BashHub
             </span>
           </Link>
 

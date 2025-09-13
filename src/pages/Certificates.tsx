@@ -31,6 +31,7 @@ export const Certificates: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [processingFile, setProcessingFile] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -43,7 +44,7 @@ export const Certificates: React.FC = () => {
     if (user) {
       fetchCertificates();
     }
-  }, [user]);
+  }, [user]); // Remove fetchCertificates from dependencies since it's stable
 
   const fetchCertificates = async () => {
     if (!user) return;
@@ -145,13 +146,89 @@ export const Certificates: React.FC = () => {
   };
 
   const getFileUrl = (filePath: string) => {
-    const { data } = supabase.storage
-      .from('certificates')
-      .getPublicUrl(filePath);
-    return data.publicUrl;
+    try {
+      const { data } = supabase.storage
+        .from('certificates')
+        .getPublicUrl(filePath);
+      
+      console.log('Generated URL:', data.publicUrl); // Debug log
+      return data.publicUrl;
+    } catch (error) {
+      console.error('Error generating file URL:', error);
+      return '';
+    }
   };
 
-  return (
+  const downloadFile = async (filePath: string, title: string) => {
+    setProcessingFile(filePath);
+    try {
+      // First check if file exists
+      const { data: fileData, error: listError } = await supabase.storage
+        .from('certificates')
+        .list(filePath.split('/')[0]);
+
+      if (listError) {
+        console.error('Error checking file:', listError);
+        toast({
+          title: "Error",
+          description: "Certificate file not found",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { data, error } = await supabase.storage
+        .from('certificates')
+        .download(filePath);
+
+      if (error) {
+        console.error('Download error:', error);
+        toast({
+          title: "Error",
+          description: `Failed to download certificate: ${error.message}`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create a blob URL and trigger download
+      const url = URL.createObjectURL(data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${title}.${filePath.split('.').pop()}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Success",
+        description: "Certificate downloaded successfully",
+      });
+    } catch (error) {
+      console.error('Download error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to download certificate",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingFile(null);
+    }
+  };
+
+  const viewFile = (filePath: string) => {
+    const url = getFileUrl(filePath);
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } else {
+      toast({
+        title: "Error",
+        description: "Unable to generate file URL",
+        variant: "destructive",
+      });
+    }
+  };  return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
       <Navbar isAuthenticated={true} onLogout={signOut} />
       
@@ -281,26 +358,31 @@ export const Certificates: React.FC = () => {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => window.open(getFileUrl(certificate.file_path), '_blank')}
+                          onClick={() => viewFile(certificate.file_path)}
+                          title="View Certificate"
+                          disabled={processingFile === certificate.file_path}
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => {
-                            const link = document.createElement('a');
-                            link.href = getFileUrl(certificate.file_path);
-                            link.download = certificate.title;
-                            link.click();
-                          }}
+                          onClick={() => downloadFile(certificate.file_path, certificate.title)}
+                          title="Download Certificate"
+                          disabled={processingFile === certificate.file_path}
                         >
-                          <Download className="h-4 w-4" />
+                          {processingFile === certificate.file_path ? (
+                            <div className="h-4 w-4 animate-spin border-2 border-current border-t-transparent rounded-full" />
+                          ) : (
+                            <Download className="h-4 w-4" />
+                          )}
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => handleDelete(certificate.id, certificate.file_path)}
+                          title="Delete Certificate"
+                          disabled={processingFile === certificate.file_path}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

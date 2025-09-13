@@ -39,19 +39,19 @@ const App = () => (
                 </ProtectedRoute>
               } />
               <Route path="/profile" element={
-                <ProtectedRoute>
+               <ProtectedRoute>
                   <Profile />
                 </ProtectedRoute>
               } />
               <Route path="/timetable" element={
-                <ProtectedRoute>
+                 <ProtectedRoute>
                   <Timetable />
-                </ProtectedRoute>
+                 </ProtectedRoute>
               } />
               <Route path="/certificates" element={
-                <ProtectedRoute>
+                // <ProtectedRoute>
                   <Certificates />
-                </ProtectedRoute>
+                // </ProtectedRoute>
               } />
               <Route path="/leaderboard" element={<Leaderboard />} />
               <Route path="/store" element={<Store />} />

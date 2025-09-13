@@ -59,7 +59,7 @@ export const Signup: React.FC = () => {
     }
 
     try {
-      const { error } = await signUp(formData.personalEmail, formData.password, {
+      const result = await signUp(formData.personalEmail, formData.password, {
         full_name: formData.fullName,
         college_email: formData.collegeEmail,
         leetcode_username: formData.leetcodeUsername,
@@ -67,12 +67,24 @@ export const Signup: React.FC = () => {
         college_name: formData.collegeName === 'Other (Please specify)' ? formData.otherCollege : formData.collegeName,
       });
 
-      if (error) {
-        setError(error.message);
-      } else {
+      if (result.error) {
+        // Handle specific Supabase errors
+        if (result.error.message.includes('User already registered')) {
+          setError('An account with this email already exists. Please try signing in instead.');
+        } else if (result.error.message.includes('Password should be at least')) {
+          setError('Password must be at least 6 characters long.');
+        } else {
+          setError(result.error.message);
+        }
+      } else if (result.data.user) {
+        // Account created successfully - user can now access the app immediately
+        console.log('Account created successfully:', result.data.user);
         navigate('/dashboard');
+      } else {
+        setError('Account creation failed. Please try again.');
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Signup error:', error);
       setError('Failed to create account. Please try again.');
     } finally {
       setIsLoading(false);
@@ -93,14 +105,14 @@ export const Signup: React.FC = () => {
               <GraduationCap className="h-7 w-7 text-primary-foreground" />
             </div>
             <span className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              StudentHub
+              BashHub
             </span>
           </Link>
         </div>
 
         <Card className="shadow-lg">
           <CardHeader className="space-y-2 text-center">
-            <CardTitle className="text-2xl">Join StudentHub</CardTitle>
+            <CardTitle className="text-2xl">Join BashHub</CardTitle>
             <CardDescription>
               Create your account and start your journey to academic excellence
             </CardDescription>
@@ -207,17 +219,16 @@ export const Signup: React.FC = () => {
 
                 {/* College Email */}
                 <div className="space-y-2">
-                  <Label htmlFor="collegeEmail">College Email *</Label>
+                  <Label htmlFor="collegeEmail">College Email</Label>
                   <div className="relative">
                     <School className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="collegeEmail"
                       type="email"
-                      placeholder="student@college.edu"
+                      placeholder="student@college.edu.in"
                       className="pl-10"
                       value={formData.collegeEmail}
                       onChange={(e) => handleInputChange('collegeEmail', e.target.value)}
-                      required
                     />
                   </div>
                 </div>

@@ -9,7 +9,6 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
-import LeetCodeConnect from '@/components/LeetCodeConnect';
 import { User, Mail, School, Linkedin, Github, Trophy, Target, TrendingUp, Code, Calendar, CheckCircle, AlertCircle } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -239,6 +238,8 @@ export const Profile: React.FC = () => {
         title: "Success",
         description: "Profile updated successfully",
       });
+      // Recalculate completeness after update
+      fetchProfile();
     }
 
     setLoading(false);
@@ -368,17 +369,6 @@ export const Profile: React.FC = () => {
             </Card>
           </div>
 
-          {/* LeetCode Connection Section */}
-          <LeetCodeConnect
-            hasLeetCodeUsername={!!profile.leetcode_username}
-            username={profile.leetcode_username}
-            userId={user?.id || ''}
-            onUpdate={() => {
-              fetchProfile();
-              fetchUserStats();
-            }}
-          />
-
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Profile Form */}
             <div>
@@ -391,203 +381,199 @@ export const Profile: React.FC = () => {
                 </CardHeader>
                 
                 <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="fullName">Full Name</Label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="fullName"
-                        placeholder="Enter your full name"
-                        className="pl-10"
-                        value={profile.full_name}
-                        onChange={(e) => handleInputChange('full_name', e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="personalEmail">Personal Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="personalEmail"
-                        type="email"
-                        placeholder="your.email@gmail.com"
-                        className="pl-10"
-                        value={profile.personal_email}
-                        onChange={(e) => handleInputChange('personal_email', e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="collegeEmail">College Email</Label>
-                    <div className="relative">
-                      <School className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="collegeEmail"
-                        type="email"
-                        placeholder="student@college.edu"
-                        className="pl-10"
-                        value={profile.college_email}
-                        onChange={(e) => handleInputChange('college_email', e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="leetcodeUsername">LeetCode Username</Label>
-                    <div className="relative">
-                      <Github className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="leetcodeUsername"
-                        placeholder="Connect your LeetCode account above"
-                        className="pl-10 bg-muted"
-                        value={profile.leetcode_username}
-                        disabled={true}
-                        readOnly={true}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Use the LeetCode Connect section above to manage your account
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="collegeName">College Name</Label>
-                  <Input
-                    id="collegeName"
-                    placeholder="Your college name"
-                    value={profile.college_name}
-                    onChange={(e) => handleInputChange('college_name', e.target.value)}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="yearOfStudy">Year of Study</Label>
-                    <Input
-                      id="yearOfStudy"
-                      placeholder="e.g., 2, 3, 4"
-                      value={profile.year_of_study}
-                      onChange={(e) => handleInputChange('year_of_study', e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="branch">Branch</Label>
-                    <Input
-                      id="branch"
-                      placeholder="e.g., Computer Science"
-                      value={profile.branch}
-                      onChange={(e) => handleInputChange('branch', e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="phoneNumber">Phone Number</Label>
-                  <Input
-                    id="phoneNumber"
-                    placeholder="+91 9876543210"
-                    value={profile.phone_number}
-                    onChange={(e) => handleInputChange('phone_number', e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="bio">Bio</Label>
-                  <Input
-                    id="bio"
-                    placeholder="Tell us about yourself..."
-                    value={profile.bio}
-                    onChange={(e) => handleInputChange('bio', e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="linkedinUrl">LinkedIn Profile</Label>
-                  <div className="relative">
-                    <Linkedin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="linkedinUrl"
-                      placeholder="https://linkedin.com/in/username"
-                      className="pl-10"
-                      value={profile.linkedin_url}
-                      onChange={(e) => handleInputChange('linkedin_url', e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? 'Saving...' : 'Save Profile'}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Recent Activity */}
-        <div>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                Recent Activity
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {recentActivities.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <TrendingUp className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p>No recent activity</p>
-                  <p className="text-sm">Complete tasks or solve problems to see activity here</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {recentActivities.map((activity) => (
-                    <div key={activity.id} className="flex items-start space-x-3 p-3 rounded-lg bg-muted/50">
-                      <div className={`h-8 w-8 rounded-full flex items-center justify-center ${
-                        activity.type === 'task' ? 'bg-blue-100 text-blue-700' :
-                        activity.type === 'leetcode' ? 'bg-green-100 text-green-700' :
-                        'bg-purple-100 text-purple-700'
-                      }`}>
-                        {activity.type === 'task' ? <CheckCircle className="h-4 w-4" /> :
-                         activity.type === 'leetcode' ? <Code className="h-4 w-4" /> :
-                         <Trophy className="h-4 w-4" />}
+                  <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="fullName">Full Name</Label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="fullName"
+                            placeholder="Enter your full name"
+                            className="pl-10"
+                            value={profile.full_name}
+                            onChange={(e) => handleInputChange('full_name', e.target.value)}
+                          />
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">{activity.title}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(activity.date).toLocaleDateString()} at{' '}
-                          {new Date(activity.date).toLocaleTimeString([], { 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
-                          })}
-                        </p>
-                        {activity.points && (
-                          <Badge variant="secondary" className="text-xs mt-1">
-                            +{activity.points} pts
-                          </Badge>
-                        )}
+
+                      <div className="space-y-2">
+                        <Label htmlFor="personalEmail">Personal Email</Label>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="personalEmail"
+                            type="email"
+                            placeholder="your.email@gmail.com"
+                            className="pl-10"
+                            value={profile.personal_email}
+                            onChange={(e) => handleInputChange('personal_email', e.target.value)}
+                          />
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="collegeEmail">College Email</Label>
+                        <div className="relative">
+                          <School className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="collegeEmail"
+                            type="email"
+                            placeholder="student@college.edu"
+                            className="pl-10"
+                            value={profile.college_email}
+                            onChange={(e) => handleInputChange('college_email', e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="leetcodeUsername">LeetCode Username</Label>
+                        <div className="relative">
+                          <Github className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="leetcodeUsername"
+                            placeholder="leetcode_user123"
+                            className="pl-10"
+                            value={profile.leetcode_username}
+                            onChange={(e) => handleInputChange('leetcode_username', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="collegeName">College Name</Label>
+                      <Input
+                        id="collegeName"
+                        placeholder="Your college name"
+                        value={profile.college_name}
+                        onChange={(e) => handleInputChange('college_name', e.target.value)}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="yearOfStudy">Year of Study</Label>
+                        <Input
+                          id="yearOfStudy"
+                          placeholder="e.g., 2, 3, 4"
+                          value={profile.year_of_study}
+                          onChange={(e) => handleInputChange('year_of_study', e.target.value)}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="branch">Branch</Label>
+                        <Input
+                          id="branch"
+                          placeholder="e.g., Computer Science"
+                          value={profile.branch}
+                          onChange={(e) => handleInputChange('branch', e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="phoneNumber">Phone Number</Label>
+                      <Input
+                        id="phoneNumber"
+                        placeholder="+91 9876543210"
+                        value={profile.phone_number}
+                        onChange={(e) => handleInputChange('phone_number', e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="bio">Bio</Label>
+                      <Input
+                        id="bio"
+                        placeholder="Tell us about yourself..."
+                        value={profile.bio}
+                        onChange={(e) => handleInputChange('bio', e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="linkedinUrl">LinkedIn Profile</Label>
+                      <div className="relative">
+                        <Linkedin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="linkedinUrl"
+                          placeholder="https://linkedin.com/in/username"
+                          className="pl-10"
+                          value={profile.linkedin_url}
+                          onChange={(e) => handleInputChange('linkedin_url', e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <Button type="submit" className="w-full" disabled={loading}>
+                      {loading ? 'Saving...' : 'Save Profile'}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Recent Activity */}
+            <div>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Calendar className="h-5 w-5" />
+                    Recent Activity
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {recentActivities.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <TrendingUp className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p>No recent activity</p>
+                      <p className="text-sm">Complete tasks or solve problems to see activity here</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {recentActivities.map((activity) => (
+                        <div key={activity.id} className="flex items-start space-x-3 p-3 rounded-lg bg-muted/50">
+                          <div className={`h-8 w-8 rounded-full flex items-center justify-center ${
+                            activity.type === 'task' ? 'bg-blue-100 text-blue-700' :
+                            activity.type === 'leetcode' ? 'bg-green-100 text-green-700' :
+                            'bg-purple-100 text-purple-700'
+                          }`}>
+                            {activity.type === 'task' ? <CheckCircle className="h-4 w-4" /> :
+                             activity.type === 'leetcode' ? <Code className="h-4 w-4" /> :
+                             <Trophy className="h-4 w-4" />}
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-medium text-sm">{activity.title}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(activity.date).toLocaleDateString()} at{' '}
+                              {new Date(activity.date).toLocaleTimeString([], { 
+                                hour: '2-digit', 
+                                minute: '2-digit' 
+                              })}
+                            </p>
+                            {activity.points && (
+                              <Badge variant="secondary" className="text-xs mt-1">
+                                +{activity.points} pts
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </div>
       </div>
       
       <Footer />
-    </div>
-    </div>
     </div>
   );
 };
