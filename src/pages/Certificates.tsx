@@ -43,13 +43,7 @@ export const Certificates: React.FC = () => {
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  useEffect(() => {
-    if (user) {
-      fetchCertificates();
-    }
-  }, [user]); // Remove fetchCertificates from dependencies since it's stable
-
-  const fetchCertificates = async () => {
+  const fetchCertificates = React.useCallback(async () => {
     if (!user) return;
 
     setLoading(true);
@@ -62,22 +56,55 @@ export const Certificates: React.FC = () => {
 
     if (error) {
       console.error('Error fetching certificates:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load certificates",
+        variant: "destructive",
+      });
     } else {
       setCertificates(data || []);
     }
     
     setLoading(false);
-  };
+  }, [user, toast]);
+
+  useEffect(() => {
+    if (user) {
+      fetchCertificates();
+    }
+  }, [user, fetchCertificates]);
 
   const handleFileUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !selectedFile) return;
 
+    // Validate file type
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(selectedFile.type)) {
+      toast({
+        title: "Error",
+        description: "Please upload a PDF or image file (JPEG, PNG, GIF, WebP)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (10MB limit)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (selectedFile.size > maxSize) {
+      toast({
+        title: "Error",
+        description: "File size must be less than 10MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setUploading(true);
 
     try {
       const fileExt = selectedFile.name.split('.').pop();
-      const fileName = `${Date.now()}_${user.id.slice(0, 8)}.${fileExt}`;
+      const fileName = `${user.id}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('certificates')
@@ -92,6 +119,8 @@ export const Certificates: React.FC = () => {
           title: formData.title,
           description: formData.description,
           file_path: fileName,
+          file_size: selectedFile.size,
+          file_type: selectedFile.type,
           category: formData.category,
           visibility: formData.visibility,
         });
@@ -107,10 +136,12 @@ export const Certificates: React.FC = () => {
       setFormData({ title: '', description: '', category: 'academic', visibility: 'public' });
       setSelectedFile(null);
       fetchCertificates();
-    } catch (error) {
+    } catch (error: unknown) {
+      console.error('Upload error:', error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to upload certificate";
       toast({
         title: "Error",
-        description: "Failed to upload certificate",
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -286,7 +317,10 @@ export const Certificates: React.FC = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="academic">Academic</SelectItem>
-                        <SelectItem value="overall">Overall</SelectItem>
+                        <SelectItem value="professional">Professional</SelectItem>
+                        <SelectItem value="certification">Certification</SelectItem>
+                        <SelectItem value="personal">Personal</SelectItem>
+                        <SelectItem value="general">General</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -305,14 +339,22 @@ export const Certificates: React.FC = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="file">File</Label>
+                    <Label htmlFor="file">Certificate File</Label>
                     <Input
                       id="file"
                       type="file"
-                      accept=".pdf,.jpg,.jpeg,.png"
+                      accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
                       onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
                       required
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Supported formats: PDF, JPEG, PNG, GIF, WebP (max 10MB)
+                    </p>
+                    {selectedFile && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                      </div>
+                    )}
                   </div>
 
                   <Button type="submit" className="w-full" disabled={uploading}>
