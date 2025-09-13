@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
-import { Award, Upload, Plus, Download, Eye, Trash2 } from 'lucide-react';
+import { Award, Upload, Plus, Download, Eye, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 interface Certificate {
@@ -31,6 +31,9 @@ export const Certificates: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const [viewingCertificate, setViewingCertificate] = useState<Certificate | null>(null);
+  const [zoom, setZoom] = useState(1);
   const [processingFile, setProcessingFile] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
@@ -202,16 +205,33 @@ export const Certificates: React.FC = () => {
     }
   };
 
-  const viewFile = (filePath: string) => {
-    const url = getFileUrl(filePath);
-    if (url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    } else {
-      toast({
-        title: "Error",
-        description: "Unable to generate file URL",
-        variant: "destructive",
-      });
+  const viewFile = (certificate: Certificate) => {
+    setViewingCertificate(certificate);
+    setIsViewerOpen(true);
+    setZoom(1);
+  };
+
+  const getFileType = (filePath: string) => {
+    const extension = filePath.split('.').pop()?.toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension || '')) {
+      return 'image';
+    } else if (extension === 'pdf') {
+      return 'pdf';
+    }
+    return 'other';
+  };
+
+  const handleZoomIn = () => {
+    setZoom(prev => Math.min(prev + 0.25, 3));
+  };
+
+  const handleZoomOut = () => {
+    setZoom(prev => Math.max(prev - 0.25, 0.5));
+  };
+
+  const handleDownloadFromViewer = () => {
+    if (viewingCertificate) {
+      downloadFile(viewingCertificate.file_path, viewingCertificate.title);
     }
   };  return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
@@ -343,7 +363,7 @@ export const Certificates: React.FC = () => {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => viewFile(certificate.file_path)}
+                          onClick={() => viewFile(certificate)}
                           title="View Certificate"
                           disabled={processingFile === certificate.file_path}
                         >
@@ -380,6 +400,92 @@ export const Certificates: React.FC = () => {
           )}
         </div>
       </div>
+      
+      {/* Certificate Viewer Modal */}
+      <Dialog open={isViewerOpen} onOpenChange={setIsViewerOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] p-0">
+          <DialogHeader className="p-6 pb-0">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-xl font-semibold">
+                {viewingCertificate?.title}
+              </DialogTitle>
+              <div className="flex items-center gap-2">
+                {getFileType(viewingCertificate?.file_path || '') === 'image' && (
+                  <>
+                    <Button variant="outline" size="sm" onClick={handleZoomOut}>
+                      <ZoomOut className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm text-muted-foreground min-w-[4rem] text-center">
+                      {Math.round(zoom * 100)}%
+                    </span>
+                    <Button variant="outline" size="sm" onClick={handleZoomIn}>
+                      <ZoomIn className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
+                <Button variant="outline" size="sm" onClick={handleDownloadFromViewer}>
+                  <Download className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setIsViewerOpen(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            {viewingCertificate?.description && (
+              <p className="text-sm text-muted-foreground mt-2">
+                {viewingCertificate.description}
+              </p>
+            )}
+          </DialogHeader>
+          
+          <div className="p-6 pt-4 overflow-auto max-h-[calc(90vh-8rem)]">
+            {viewingCertificate && (
+              <div className="flex justify-center">
+                {getFileType(viewingCertificate.file_path) === 'image' ? (
+                  <div className="overflow-auto">
+                    <img
+                      src={getFileUrl(viewingCertificate.file_path)}
+                      alt={viewingCertificate.title}
+                      className="max-w-none transition-transform duration-200"
+                      style={{ 
+                        transform: `scale(${zoom})`,
+                        transformOrigin: 'center top'
+                      }}
+                      onError={(e) => {
+                        console.error('Image load error');
+                        toast({
+                          title: "Error",
+                          description: "Failed to load certificate image",
+                          variant: "destructive",
+                        });
+                      }}
+                    />
+                  </div>
+                ) : getFileType(viewingCertificate.file_path) === 'pdf' ? (
+                  <div className="w-full h-[600px]">
+                    <iframe
+                      src={getFileUrl(viewingCertificate.file_path)}
+                      className="w-full h-full border rounded-lg"
+                      title={viewingCertificate.title}
+                    />
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Award className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground mb-4">
+                      Preview not available for this file type
+                    </p>
+                    <Button onClick={handleDownloadFromViewer}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Download to View
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
       
       <Footer />
     </div>
